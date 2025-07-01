@@ -1,7 +1,7 @@
 {
   "prefix": "-",
-  "adminUID": ["100027867581039", ""],
+  "adminUID": ["100027867581039"],
   "version": "2.4.2",
   "credit": "Joshua Apostol & Cyril Encenso",
-  "github": [""]
+  "github": ["https://github.com/your-repo"]
 }
