@@ -1,0 +1,180 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>502</title>
+    <style>
+      @font-face {
+        font-family: "Roobert";
+        font-weight: 400;
+        font-style: normal;
+        font-stretch: normal;
+      }
+
+      :root {
+        --text-strong: #0d0d0d;  
+        --text-primary: #272727;  
+        --text-secondary: #6b6b6b;  
+        --page-primary: #fff;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --text-strong: #fff;
+        --text-primary: #f0f0f0;  
+        --text-secondary: #c7c7c7;  
+        --page-primary: #0d0d0d;  
+      }
+
+      .type-hero {
+        font-size: 128px;
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: -1.28px;
+      }
+
+      .type-body-01 {
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 20px;
+        letter-spacing: 0.14px;
+      }
+
+      .type-heading-04 {
+        font-size: 28px;
+        font-weight: 400;
+        line-height: 32px;
+        letter-spacing: -0.28px;
+      }
+
+      .text-primary {
+        color: var(--text-primary);
+      }
+
+      .text-secondary {
+        color: var(--text-secondary);
+      }
+
+      body {
+        font-family: Roobert, sans-serif;
+        margin: 0;
+        padding: 0 1rem;
+        background: var(--page-primary);
+        color: var(--text-strong);
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+        min-height: 100vh;
+      }
+
+      h2 {
+        margin: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .site-content {
+        margin: auto;
+      }
+
+      header {
+        margin: 1.5rem 0;
+      }
+
+      main > * {
+        margin-bottom: 1rem;
+      }
+
+      .request-id {
+        margin-bottom: 2rem;
+      }
+
+      footer {
+        padding: 1.75rem 0;
+      }
+
+      .logo-render {
+        margin-left: 0.25rem;
+      }
+    </style>
+
+    <link
+      id="favicon"
+      rel="shortcut icon"
+      href="data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg clip-path='url(%23clip0_459_932)'%3E%3Cpath d='M11.4327 1.00388C9.64526 0.919753 8.14218 2.21231 7.88574 3.91533C7.87559 3.99436 7.86035 4.07085 7.84766 4.14733C7.44904 6.26845 5.59303 7.87459 3.3638 7.87459C2.5691 7.87459 1.82263 7.67064 1.17265 7.31372C1.09394 7.27038 1 7.32647 1 7.4157V7.87204V14.7479H7.84512V9.59291C7.84512 8.64452 8.61189 7.87459 9.5564 7.87459H11.2677C13.2049 7.87459 14.7639 6.2608 14.6877 4.29774C14.6191 2.53099 13.1922 1.08802 11.4327 1.00388Z' fill='black'/%3E%3C/g%3E%3Cdefs%3E%3CclipPath id='clip0_459_932'%3E%3Crect width='14' height='14' fill='white' transform='translate(1 1)'/%3E%3C/clipPath%3E%3C/defs%3E%3C/svg%3E%0A"
+    />
+
+    <script>
+      (function () {
+        try {
+          var prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)"
+          ).matches;
+          if (!prefersDark) return;
+          document.documentElement.setAttribute("data-theme", "dark");
+          var favicon = document.getElementById("favicon");
+          if (favicon)
+            favicon.setAttribute(
+              "href",
+              "data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg clip-path='url(%23clip0_459_963)'%3E%3Cpath d='M11.4327 1.00388C9.64526 0.919753 8.14218 2.21231 7.88574 3.91533C7.87559 3.99436 7.86035 4.07085 7.84766 4.14733C7.44904 6.26845 5.59303 7.87459 3.3638 7.87459C2.5691 7.87459 1.82263 7.67064 1.17265 7.31372C1.09394 7.27038 1 7.32647 1 7.4157V7.87204V14.7479H7.84512V9.59291C7.84512 8.64452 8.61189 7.87459 9.5564 7.87459H11.2677C13.2049 7.87459 14.7639 6.2608 14.6877 4.29774C14.6191 2.53099 13.1922 1.08802 11.4327 1.00388Z' fill='white'/%3E%3C/g%3E%3Cdefs%3E%3CclipPath id='clip0_459_963'%3E%3Crect width='14' height='14' fill='white' transform='translate(1 1)'/%3E%3C/clipPath%3E%3C/defs%3E%3C/svg%3E%0A"
+            );
+        } catch (e) {}
+      })();
+
+      function generateRequestId() {
+        const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let requestId = '';
+        for (let i = 0; i < 16; i++) {
+          const randomIndex = Math.floor(Math.random() * characters.length);
+          requestId += characters[randomIndex];
+        }
+        return requestId.toUpperCase();
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        const requestId = generateRequestId();
+        document.getElementById('request-id').textContent = 'Request ID: ' + requestId + '-HKG';
+      });
+
+    </script>
+  </head>
+  <body>
+    <div class="site-content">
+      <header>
+        <svg
+          fill="currentColor"
+          width="212"
+          height="93"
+          viewBox="0 0 212 93"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <title>502</title>
+          <path
+            d="M30.0545 92.024C13.9265 92.024 2.0225 81.144 0.230499 66.168H8.6785C10.0865 77.688 18.2785 84.088 29.9265 84.088C44.3905 84.088 53.6065 75.768 53.6065 61.816C53.6065 47.864 44.3905 38.776 30.0545 38.776C19.4305 38.776 11.4945 43.128 8.8065 50.296H2.1505L8.9345 1.39999H56.0385V9.336H15.4625L11.2385 39.032C15.8465 34.552 24.0385 31.096 30.6945 31.096C49.7665 31.096 62.5665 43.512 62.5665 61.816C62.5665 80.12 49.5105 92.024 30.0545 92.024ZM104.704 92.024C83.1995 92.024 75.0075 77.432 75.0075 50.04V42.36C75.0075 14.968 83.1995 0.375999 104.704 0.375999H108.928C130.56 0.375999 138.624 14.968 138.624 42.36V50.04C138.624 77.432 130.56 92.024 108.928 92.024H104.704ZM83.5835 50.04C83.5835 72.696 89.3435 84.088 104.832 84.088H108.928C124.416 84.088 130.176 72.696 130.176 50.04V42.36C130.176 19.704 124.416 8.312 108.928 8.312H104.832C89.3435 8.312 83.5835 19.704 83.5835 42.36V50.04ZM153.719 29.688C152.823 11.896 164.343 0.375999 182.391 0.375999C198.647 0.375999 210.551 10.744 210.551 26.744C210.551 38.264 203.383 48.12 189.815 54.904L177.399 61.176C169.335 65.272 160.247 73.08 160.247 83.064H211.191V91H152.055V85.112C152.055 68.472 164.727 58.488 174.199 53.624L187.639 46.712C198.135 41.336 201.591 34.808 201.591 26.488C201.591 15.48 193.271 8.312 182.391 8.312C170.103 8.312 162.039 16.76 162.679 29.688H153.719Z"
+          />
+        </svg>
+        <h1 class="type-heading-04">Bad Gateway</h1>
+      </header>
+      <main class="text-primary">
+        <div class="request-id" id="request-id">
+          Request ID: 
+        </div>
+        <div>
+          This service is currently unavailable. Please try again in a few
+          minutes.
+        </div>
+      </main>
+    </div>
+    <footer>
+      Powered by Nashbot
+    </footer>
+  </body>
+</html>

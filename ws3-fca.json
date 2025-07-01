@@ -1,0 +1,12 @@
+{
+    "BypassAutomationBehavior": true,
+    "AutoRefreshFbDtsg": true,
+    "AutoRefreshCookie": false,
+    "logLevel": "silent",
+    "selfListen": false,
+    "listenEvents": true,
+    "updatePresence": false,
+    "forceLogin": false,
+    "autoReconnect": false,
+    "online": true
+}
