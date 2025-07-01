@@ -359,6 +359,27 @@ module.exports = {
             return handleOut(api, event, threadID, messageID, isAdmin);
         }
 
+        if (message.includes('ai status') || message.includes('check ai')) {
+            const aiEnabled = aiToggleStates.get(threadID) || false;
+            const gojoEnabled = gojoToggleStates.get(threadID) || false;
+            
+            const statusContent = `----------------------------------
+
+🤖 𝗔𝗜 𝗦𝗧𝗔𝗧𝗨𝗦 𝗖𝗛𝗘𝗖𝗞
+
+🧠 AI Mode: ${aiEnabled ? '✅ ENABLED' : '❌ DISABLED'}
+😈 Gojo Mode: ${gojoEnabled ? '✅ ENABLED' : '❌ DISABLED'}
+
+----------------------------------
+
+💡 To enable AI: Type "on ai" or "ai on"
+💡 To enable Gojo: Type "on gojo" or "gojo on"
+💡 To disable: Type "off ai" or "off gojo"`;
+
+            const statusMessage = design("🤖 AI STATUS CHECK", statusContent);
+            return api.sendMessage(statusMessage, threadID, messageID);
+        }
+
         if (isAdmin) {
             if (isAddUserRequest(message)) {
                 return handleAddUser(api, event, args, threadID, messageID);
@@ -966,18 +987,24 @@ async function handleAIQuery(api, event, body, threadID, messageID) {
             }
         }
 
+        // Get AI toggle states for this thread
+        const aiEnabled = aiToggleStates.get(threadID) || false;
+        const gojoEnabled = gojoToggleStates.get(threadID) || false;
+
         // Check if this is a natural conversation that needs AI response
         const shouldRespondWithAI = await isNaturalConversation(body);
 
+        // If AI mode is enabled, always respond with AI
         if (aiEnabled) {
             return handleAIQuery(api, event, body, threadID, messageID);
         }
 
+        // If Gojo mode is enabled, always respond with Gojo
         if (gojoEnabled) {
             return handleGojoAutoResponse(api, event, body, threadID, messageID);
         }
 
-        // If AI is off but this seems like a natural conversation, still respond
+        // If neither AI nor Gojo is enabled, but this seems like a natural conversation, respond with AI
         if (shouldRespondWithAI && !aiEnabled && !gojoEnabled) {
             return handleAIQuery(api, event, body, threadID, messageID);
         }
