@@ -475,14 +475,7 @@ module.exports = {
                 if (err) return console.error(err);
 
                 try {
-                    const trackInfo = await axios.get(`${API_CONFIG.FAB_DL}/spotify/get?url=${selectedTrack.url}`);
-                    const track = trackInfo.data.result;
-
-                    const downloadData = await axios.get(
-                        `${API_CONFIG.FAB_DL}/spotify/mp3-convert-task/${track.gid}/${track.id}`
-                    );
-                    const mp3Info = downloadData.data.result;
-                    
+                    // Use alternative download method with better error handling
                     const downloadingMsg = `
 ╭─────────────────────╮
 │   🎵 𝗦𝗣𝗢𝗧𝗜𝗙𝗬 𝗗𝗟      │
@@ -494,22 +487,43 @@ module.exports = {
 ⬇️ 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗶𝗻𝗴 𝗮𝘂𝗱𝗶𝗼...
 
 ━━━━━━━━━━━━━━━━━━━
-🎧 Almost ready!`;
+🎧 Using alternative download method...`;
                     
                     api.editMessage(downloadingMsg, info.messageID);
+
+                    // Try alternative API for Spotify downloads
+                    const altResponse = await axios.get(`https://api.lyrics.ovh/v1/${encodeURIComponent(selectedTrack.artist)}/${encodeURIComponent(selectedTrack.title)}`);
                     
+                    // If lyrics API works, try direct download approach
                     const tempDir = path.join(__dirname, 'temp');
                     if (!fs.existsSync(tempDir)) {
-                        fs.mkdirSync(tempDir);
+                        fs.mkdirSync(tempDir, { recursive: true });
                     }
-                    
+
+                    // Try using yt-dlp API alternative for Spotify
+                    const downloadResponse = await axios.get(`https://api.spotifydown.com/download/${selectedTrack.id}`, {
+                        timeout: 30000,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!downloadResponse.data || !downloadResponse.data.link) {
+                        throw new Error("Download link not available");
+                    }
+
                     const audioPath = path.join(tempDir, `spotify_${Date.now()}.mp3`);
                     const writer = fs.createWriteStream(audioPath);
                     
                     const audioResponse = await axios({
                         method: 'get',
-                        url: `${API_CONFIG.FAB_DL}${mp3Info.download_url}`,
-                        responseType: 'stream'
+                        url: downloadResponse.data.link,
+                        responseType: 'stream',
+                        timeout: 60000,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
                     });
                     
                     audioResponse.data.pipe(writer);
@@ -517,6 +531,11 @@ module.exports = {
                     await new Promise((resolve, reject) => {
                         writer.on('finish', resolve);
                         writer.on('error', reject);
+                        
+                        // Add timeout for file writing
+                        setTimeout(() => {
+                            reject(new Error('Download timeout'));
+                        }, 60000);
                     });
 
                     const sendingMsg = `
@@ -544,44 +563,79 @@ module.exports = {
 ⏱️ ${formatSpotifyDuration(selectedTrack.duration)}
 
 ━━━━━━━━━━━━━━━━━━━
-
-🔗 𝗗𝗶𝗿𝗲𝗰𝘁 𝗟𝗶𝗻𝗸:
-${API_CONFIG.FAB_DL}${mp3Info.download_url}
-
-━━━━━━━━━━━━━━━━━━━
 🎧 𝗘𝗻𝗷𝗼𝘆 𝘆𝗼𝘂𝗿 𝗺𝘂𝘀𝗶𝗰! ✨`;
                     
-                    api.sendMessage(messageBody, threadID);
-                    
-                    const audioStream = fs.createReadStream(audioPath);
-                    api.sendMessage({
-                        attachment: audioStream
-                    }, threadID, async () => {
-                        fs.unlinkSync(audioPath);
-                        api.unsendMessage(info.messageID);
-                    });
+                    // Check if file exists and has content
+                    if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 0) {
+                        const audioStream = fs.createReadStream(audioPath);
+                        api.sendMessage({
+                            body: messageBody,
+                            attachment: audioStream
+                        }, threadID, async () => {
+                            try {
+                                fs.unlinkSync(audioPath);
+                            } catch (cleanupError) {
+                                console.error('Cleanup error:', cleanupError);
+                            }
+                            api.unsendMessage(info.messageID);
+                        });
+                    } else {
+                        throw new Error("Downloaded file is empty or corrupted");
+                    }
 
                     ReplyHandler.remove(replyData.messageID);
 
                 } catch (error) {
                     console.error("Spotify download error:", error);
-                    const errorMsg = `
+                    
+                    // Fallback: Provide Spotify link instead of crashing
+                    try {
+                        const fallbackMsg = `
 ╭─────────────────────╮
-│  ❌ 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗘𝗥𝗥𝗢𝗥│
+│  ⚠️ 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗜𝗦𝗦𝗨𝗘 │
 ╰─────────────────────╯
 
-🚫 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱
+🎵 ${selectedTrack.title}
+🎤 ${selectedTrack.artist}
 
-⚠️ ${error.message}
+🚫 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗳𝗮𝗶𝗹𝗲𝗱, 𝗯𝘂𝘁 𝗵𝗲𝗿𝗲'𝘀 𝘁𝗵𝗲 𝗦𝗽𝗼𝘁𝗶𝗳𝘆 𝗹𝗶𝗻𝗸:
 
-💡 𝗣𝗹𝗲𝗮𝘀𝗲:
-   • Try again later
-   • Search for another song
-   • Check your connection
+🔗 ${selectedTrack.url}
+
+💡 𝗬𝗼𝘂 𝗰𝗮𝗻:
+   • Open this link in Spotify
+   • Try searching for another song
+   • Use a different music downloader
 
 ━━━━━━━━━━━━━━━━━━━
-🔄 Ready to try again!`;
-                    api.editMessage(errorMsg, info.messageID);
+🎧 Sorry for the inconvenience!`;
+                        
+                        api.editMessage(fallbackMsg, info.messageID);
+                        
+                        // Clean up any partial files
+                        const tempDir = path.join(__dirname, 'temp');
+                        if (fs.existsSync(tempDir)) {
+                            const files = fs.readdirSync(tempDir).filter(file => file.startsWith('spotify_'));
+                            files.forEach(file => {
+                                try {
+                                    fs.unlinkSync(path.join(tempDir, file));
+                                } catch (cleanupError) {
+                                    console.error('Cleanup error:', cleanupError);
+                                }
+                            });
+                        }
+                        
+                    } catch (fallbackError) {
+                        console.error("Fallback error:", fallbackError);
+                        api.editMessage("❌ Service temporarily unavailable. Please try again later.", info.messageID);
+                    }
+                    
+                    // Always remove the reply handler to prevent memory leaks
+                    try {
+                        ReplyHandler.remove(replyData.messageID);
+                    } catch (cleanupError) {
+                        console.error('Reply handler cleanup error:', cleanupError);
+                    }
                 }
             }, messageID);
         }
