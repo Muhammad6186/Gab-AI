@@ -85,6 +85,30 @@ global.NashBot = {
   JOSHUA: "https://kaiz-apis.gleeze.com/"
 };
 
+// Add global error handlers to prevent crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error(
+    chalk.bold.gray("[") + 
+    chalk.bold.red("UNHANDLED REJECTION") + 
+    chalk.bold.gray("] ") + 
+    chalk.bold.redBright("Promise rejected:", reason)
+  );
+  // Don't crash the process
+});
+
+process.on('uncaughtException', (error) => {
+  console.error(
+    chalk.bold.gray("[") + 
+    chalk.bold.red("UNCAUGHT EXCEPTION") + 
+    chalk.bold.gray("] ") + 
+    chalk.bold.redBright("Error:", error.message)
+  );
+  // Don't crash the process for non-critical errors
+  if (!error.message.includes('unsendMessage') && !error.message.includes('Cannot read properties of undefined')) {
+    process.exit(1);
+  }
+});
+
 let isLoggedIn = false;
 let loginAttempts = 0;
 const nax_retries = 5;
