@@ -2028,7 +2028,7 @@ async function handleSpotify(api, event, body, threadID, messageID) {
                     id: track.id,
                     title: title,
                     artist: artist,
-                    duration: duration_ms,
+                    duration: track.duration_ms,
                     cover: cover,
                     url: track.external_urls.spotify
                 });
