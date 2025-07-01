@@ -12,6 +12,10 @@ const ReplyHandler = {
     
     register(messageID, data) {
         this.replyMap.set(messageID, data);
+        // Auto-cleanup after 10 minutes to prevent memory leaks
+        setTimeout(() => {
+            this.replyMap.delete(messageID);
+        }, 600000);
     },
     
     get(messageID) {
@@ -20,6 +24,11 @@ const ReplyHandler = {
     
     remove(messageID) {
         this.replyMap.delete(messageID);
+    },
+    
+    cleanup() {
+        // Manual cleanup method
+        this.replyMap.clear();
     }
 };
 
@@ -248,8 +257,17 @@ module.exports = {
         const message = body.toLowerCase().trim();
 
         const configPath = path.join(__dirname, '../../config.json');
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        const isAdmin = senderID === config.adminUID;
+        let config, isAdmin = false;
+        
+        try {
+            config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            isAdmin = Array.isArray(config.adminUID) ? 
+                config.adminUID.includes(senderID) : 
+                config.adminUID === senderID;
+        } catch (error) {
+            console.error('Error reading config:', error);
+            config = { adminUID: [] };
+        }
 
         if (event.messageReply && event.messageReply.senderID === api.getCurrentUserID()) {
             const replyData = ReplyHandler.get(event.messageReply.messageID);
@@ -871,9 +889,10 @@ async function handleAIQuery(api, event, body, threadID, messageID) {
         if (err) return;
 
         try {
-            const url = `${global.NashBot.JOSHUA}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=1&imageUrl=&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`;
+            const baseUrl = global.NashBot?.JOSHUA || "https://kaiz-apis.gleeze.com/";
+            const url = `${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=1&imageUrl=&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`;
             const response = await axios.get(url);
-            const reply = response.data.response;
+            const reply = response.data.response || "No response received";
             api.editMessage(reply, info.messageID);
         } catch (error) {
             api.editMessage("❌ Failed to get AI response.", info.messageID);
@@ -903,8 +922,9 @@ async function handleAria(api, event, body, threadID, messageID) {
         try {
             const url = `https://api.openai.com/v1/chat/completions`;
 
-            const response = await axios.get(`${global.NashBot.JOSHUA}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=2&imageUrl=&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`);
-            const reply = response.data.response;
+            const baseUrl = global.NashBot?.JOSHUA || "https://kaiz-apis.gleeze.com/";
+            const response = await axios.get(`${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=2&imageUrl=&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`);
+            const reply = response.data?.response || "No response received";
             api.editMessage(`🎭 Gab: ${reply}`, info.messageID);
         } catch (error) {
             api.editMessage("❌ Gab is currently unavailable.", info.messageID);
@@ -1284,11 +1304,16 @@ function handleComprehensiveHelp(api, threadID, messageID, prefix) {
 
     const comprehensiveMessage = design("🤖 Gab AI - COMPLETE FEATURE GUIDE", helpContent);
 
-    const imagePath = './nashbot.png';
+    const imagePath = path.join(__dirname, '../../nashbot.png');
 
     if (fs.existsSync(imagePath)) {
-        const attachment = fs.createReadStream(imagePath);
-        api.sendMessage({ body: comprehensiveMessage, attachment }, threadID, messageID);
+        try {
+            const attachment = fs.createReadStream(imagePath);
+            api.sendMessage({ body: comprehensiveMessage, attachment }, threadID, messageID);
+        } catch (error) {
+            console.error('Error loading image:', error);
+            api.sendMessage(comprehensiveMessage, threadID, messageID);
+        }
     } else {
         api.sendMessage(comprehensiveMessage, threadID, messageID);
     }
@@ -1297,11 +1322,16 @@ function handleComprehensiveHelp(api, threadID, messageID, prefix) {
 function handlePrefix(api, threadID, prefix) {
     const message = `My prefix is [ 𓆩 '${prefix}' 𓆪 ]\n\nBut guess what? You don't need it anymore! 🎉\nJust talk to me naturally and I'll understand! 💬`;
 
-    const imagePath = './josh.jpeg';
+    const imagePath = path.join(__dirname, '../../josh.jpeg');
 
     if (fs.existsSync(imagePath)) {
-        const attachment = fs.createReadStream(imagePath);
-        api.sendMessage({ body: message, attachment }, threadID);
+        try {
+            const attachment = fs.createReadStream(imagePath);
+            api.sendMessage({ body: message, attachment }, threadID);
+        } catch (error) {
+            console.error('Error loading image:', error);
+            api.sendMessage(message, threadID);
+        }
     } else {
         api.sendMessage(message, threadID);
     }
@@ -1668,15 +1698,22 @@ ${filteredContent}${weatherInfo}----------------------------------
             }
         });
 
-        ws.on("close", () => {
+        ws.on("close", (code, reason) => {
             clearInterval(keepAliveInterval);
+            console.log(`WebSocket closed with code ${code}: ${reason}`);
             const session = activeSessions.get(threadID);
-            if (session && !session.closed) setTimeout(connectWebSocket, 3000);
+            if (session && !session.closed) {
+                console.log("Attempting to reconnect WebSocket...");
+                setTimeout(connectWebSocket, 3000);
+            }
         });
 
         ws.on("error", (error) => {
             console.error('GAG Stock WebSocket Error:', error);
-            ws.close();
+            // Don't immediately close - let it try to reconnect
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
         });
 
         activeSessions.set(threadID, { ws, keepAlive: keepAliveInterval, closed: false });
@@ -1765,9 +1802,15 @@ function handleRestockTimers(api, threadID, messageID) {
 }
 
 function handleWomen(api, threadID, messageID) {
+    const videoPath = path.join(__dirname, 'noprefix', 'Women.mp4');
+    
+    if (!fs.existsSync(videoPath)) {
+        return api.sendMessage("Women talaga (video not found)", threadID, messageID);
+    }
+    
     const msg = {
         body: "Women talaga",
-        attachment: fs.createReadStream(__dirname + `/noprefix/Women.mp4`)
+        attachment: fs.createReadStream(videoPath)
     };
 
     api.sendMessage(msg, threadID, messageID);
