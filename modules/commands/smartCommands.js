@@ -890,11 +890,34 @@ async function handleAIQuery(api, event, body, threadID, messageID) {
 
         try {
             const baseUrl = global.NashBot?.JOSHUA || "https://kaiz-apis.gleeze.com/";
-            const url = `${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=1&imageUrl=&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`;
+            
+            // Check for image attachments
+            let imageUrl = "";
+            if (event.attachments && event.attachments.length > 0) {
+                const imageAttachment = event.attachments.find(att => 
+                    att.type === "photo" || att.type === "image"
+                );
+                if (imageAttachment) {
+                    imageUrl = imageAttachment.url || imageAttachment.hiresUrl || imageAttachment.previewUrl || "";
+                }
+            }
+            
+            // Also check for message reply with image
+            if (!imageUrl && event.messageReply && event.messageReply.attachments) {
+                const replyImageAttachment = event.messageReply.attachments.find(att => 
+                    att.type === "photo" || att.type === "image"
+                );
+                if (replyImageAttachment) {
+                    imageUrl = replyImageAttachment.url || replyImageAttachment.hiresUrl || replyImageAttachment.previewUrl || "";
+                }
+            }
+
+            const url = `${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=1&imageUrl=${encodeURIComponent(imageUrl)}&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`;
             const response = await axios.get(url);
             const reply = response.data.response || "No response received";
             api.editMessage(reply, info.messageID);
         } catch (error) {
+            console.error("AI Query Error:", error);
             api.editMessage("❌ Failed to get AI response.", info.messageID);
         }
     }, messageID);
@@ -920,13 +943,33 @@ async function handleAria(api, event, body, threadID, messageID) {
 
     api.sendMessage("Processing..", threadID, async (err, info) => {
         try {
-            const url = `https://api.openai.com/v1/chat/completions`;
+            // Check for image attachments
+            let imageUrl = "";
+            if (event.attachments && event.attachments.length > 0) {
+                const imageAttachment = event.attachments.find(att => 
+                    att.type === "photo" || att.type === "image"
+                );
+                if (imageAttachment) {
+                    imageUrl = imageAttachment.url || imageAttachment.hiresUrl || imageAttachment.previewUrl || "";
+                }
+            }
+            
+            // Also check for message reply with image
+            if (!imageUrl && event.messageReply && event.messageReply.attachments) {
+                const replyImageAttachment = event.messageReply.attachments.find(att => 
+                    att.type === "photo" || att.type === "image"
+                );
+                if (replyImageAttachment) {
+                    imageUrl = replyImageAttachment.url || replyImageAttachment.hiresUrl || replyImageAttachment.previewUrl || "";
+                }
+            }
 
             const baseUrl = global.NashBot?.JOSHUA || "https://kaiz-apis.gleeze.com/";
-            const response = await axios.get(`${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=2&imageUrl=&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`);
+            const response = await axios.get(`${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=2&imageUrl=${encodeURIComponent(imageUrl)}&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`);
             const reply = response.data?.response || "No response received";
             api.editMessage(`🎭 Gab: ${reply}`, info.messageID);
         } catch (error) {
+            console.error("Aria Error:", error);
             api.editMessage("❌ Gab is currently unavailable.", info.messageID);
         }
     });
