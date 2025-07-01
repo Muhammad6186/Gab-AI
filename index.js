@@ -31,6 +31,49 @@ try {
 app.use(bodyParser.json());
 app.use(express.static("public"));
 
+// Add proper web routes
+app.get('/', (req, res) => {
+  res.json({
+    status: "online",
+    name: "NASHBOT",
+    version: config.version || "2.4.2",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    features: [
+      "Smart Commands",
+      "AI Integration", 
+      "Real-time WebSocket",
+      "Media Processing",
+      "Group Management"
+    ]
+  });
+});
+
+app.get('/status', (req, res) => {
+  res.json({
+    bot: isLoggedIn ? "connected" : "disconnected",
+    commands: global.NashBoT.commands.size,
+    events: global.NashBoT.events.size,
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: "healthy" });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Express error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
 global.NashBoT = {
   commands: new Map(),
   events: new Map(),
