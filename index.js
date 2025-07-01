@@ -147,7 +147,7 @@ const setupBot = (api, prefix) => {
     listenEvents: true,
     logLevel: "silent",
     updatePresence: false,
-    online: false,
+    online: true,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   });
 
@@ -276,6 +276,7 @@ const init = async () => {
  █░▀█ █▀█ ▄█ █▀█`));
   console.log(chalk.bold.yellow("Credits: Joshua Apostol"));
 };
+
 
 init().then(() => app.listen(PORT, '0.0.0.0', () => console.log(
   chalk.bold.gray("[") + 

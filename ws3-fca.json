@@ -7,6 +7,6 @@
     "listenEvents": true,
     "updatePresence": false,
     "forceLogin": false,
-    "autoReconnect": false,
+    "autoReconnect": true,
     "online": true
 }
