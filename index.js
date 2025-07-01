@@ -10,7 +10,23 @@ const chalk = require("chalk");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const configPath = path.join(__dirname, "config.json");
-const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+let config;
+try {
+  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  
+  // Validate config properties
+  if (!config.prefix) config.prefix = "-";
+  if (!Array.isArray(config.adminUID)) config.adminUID = [];
+  
+} catch (error) {
+  console.error(
+    chalk.bold.gray("[") + 
+    chalk.bold.red("ERROR") + 
+    chalk.bold.gray("] ") + 
+    chalk.bold.redBright("Invalid config.json:", error.message)
+  );
+  process.exit(1);
+}
 
 app.use(bodyParser.json());
 app.use(express.static("public"));
@@ -38,24 +54,40 @@ const loadModules = (type) => {
   console.log(chalk.bold.redBright(`──LOADING ${type.toUpperCase()}──●`));
   
   files.forEach(file => {
-    const module = require(path.join(folderPath, file));
-    if (module && module.name && module[type === "commands" ? "execute" : "onEvent"]) {
-      module.nashPrefix = module.nashPrefix !== undefined ? module.nashPrefix : true;
-      module.cooldowns = module.cooldowns || 0;
-      global.NashBoT[type].set(module.name, module);
-      
-      if (type === "commands" && module.aliases && Array.isArray(module.aliases)) {
-        module.aliases.forEach(alias => {
-          global.NashBoT[type].set(alias, module);
-        });
+    try {
+      const module = require(path.join(folderPath, file));
+      if (module && module.name && module[type === "commands" ? "execute" : "onEvent"]) {
+        module.nashPrefix = module.nashPrefix !== undefined ? module.nashPrefix : true;
+        module.cooldowns = module.cooldowns || 0;
+        global.NashBoT[type].set(module.name, module);
+        
+        if (type === "commands" && module.aliases && Array.isArray(module.aliases)) {
+          module.aliases.forEach(alias => {
+            global.NashBoT[type].set(alias, module);
+          });
+        }
+        
+        console.log(
+          chalk.bold.gray("[") + 
+          chalk.bold.cyan("INFO") + 
+          chalk.bold.gray("] ") + 
+          chalk.bold.green(`Loaded ${type.slice(0, -1)}: `) + 
+          chalk.bold.magenta(module.name)
+        );
+      } else {
+        console.log(
+          chalk.bold.gray("[") + 
+          chalk.bold.yellow("WARN") + 
+          chalk.bold.gray("] ") + 
+          chalk.bold.yellowBright(`Invalid ${type.slice(0, -1)} structure: ${file}`)
+        );
       }
-      
-      console.log(
+    } catch (error) {
+      console.error(
         chalk.bold.gray("[") + 
-        chalk.bold.cyan("INFO") + 
+        chalk.bold.red("ERROR") + 
         chalk.bold.gray("] ") + 
-        chalk.bold.green(`Loaded ${type.slice(0, -1)}: `) + 
-        chalk.bold.magenta(module.name)
+        chalk.bold.redBright(`Failed to load ${file}:`, error.message)
       );
     }
   });
@@ -209,15 +241,15 @@ const handleMessage = async (api, event, prefix) => {
   const cmdFile = global.NashBoT.commands.get(command.toLowerCase());
   if (cmdFile) {
     const nashPrefix = cmdFile.nashPrefix !== false;
-    if (nashPrefix && !event.body.toLowerCase().startsWith(prefix)) {
-      
+    if (nashPrefix && !originalCommand.startsWith(prefix)) {
+      // Command requires prefix but wasn't used with prefix
       return handleSmartCommand(api, event, prefix);
     }
 
     const userId = event.senderID;
-    if (cmdFile.role === "admin" && userId !== config.adminUID) {
+    if (cmdFile.role === "admin" && !config.adminUID.includes(userId)) {
       return setTimeout(() => {
-        api.sendMessage("You don't have permission to use this commands", event.threadID);
+        api.sendMessage("You don't have permission to use this command", event.threadID);
       }, Math.random() * 1000 + 500);
     }
 
@@ -238,7 +270,13 @@ const handleMessage = async (api, event, prefix) => {
       }
 
       timestamps.set(userId, now + cooldownTime);
-      setTimeout(() => timestamps.delete(userId), cooldownTime);
+      setTimeout(() => {
+        timestamps.delete(userId);
+        // Clean up empty cooldown maps
+        if (timestamps.size === 0) {
+          global.NashBoT.cooldowns.delete(cmdFile.name);
+        }
+      }, cooldownTime);
     }
 
     try {
