@@ -103,10 +103,22 @@ process.on('uncaughtException', (error) => {
     chalk.bold.gray("] ") + 
     chalk.bold.redBright("Error:", error.message)
   );
-  // Don't crash the process for non-critical errors
-  if (!error.message.includes('unsendMessage') && !error.message.includes('Cannot read properties of undefined')) {
-    process.exit(1);
+  
+  // Specific handling for ws3-fca library bugs
+  if (error.message.includes('unsendMessage') || 
+      error.message.includes('Cannot read properties of undefined') ||
+      error.stack && error.stack.includes('ws3-fca')) {
+    console.log(
+      chalk.bold.gray("[") + 
+      chalk.bold.yellow("LIBRARY BUG") + 
+      chalk.bold.gray("] ") + 
+      chalk.bold.yellowBright("ws3-fca library error ignored to prevent crash")
+    );
+    return; // Don't crash for library bugs
   }
+  
+  // Only crash for critical system errors
+  process.exit(1);
 });
 
 let isLoggedIn = false;
