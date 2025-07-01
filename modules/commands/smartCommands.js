@@ -9,7 +9,7 @@ const cheerio = require("cheerio");
 
 const ReplyHandler = {
     replyMap: new Map(),
-
+    
     register(messageID, data) {
         this.replyMap.set(messageID, data);
         // Auto-cleanup after 10 minutes to prevent memory leaks
@@ -17,15 +17,15 @@ const ReplyHandler = {
             this.replyMap.delete(messageID);
         }, 600000);
     },
-
+    
     get(messageID) {
         return this.replyMap.get(messageID);
     },
-
+    
     remove(messageID) {
         this.replyMap.delete(messageID);
     },
-
+    
     cleanup() {
         // Manual cleanup method
         this.replyMap.clear();
@@ -258,7 +258,7 @@ module.exports = {
 
         const configPath = path.join(__dirname, '../../config.json');
         let config, isAdmin = false;
-
+        
         try {
             config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             isAdmin = Array.isArray(config.adminUID) ? 
@@ -359,27 +359,6 @@ module.exports = {
             return handleOut(api, event, threadID, messageID, isAdmin);
         }
 
-        if (message.includes('ai status') || message.includes('check ai')) {
-            const aiEnabled = aiToggleStates.get(threadID) || false;
-            const gojoEnabled = gojoToggleStates.get(threadID) || false;
-            
-            const statusContent = `----------------------------------
-
-🤖 𝗔𝗜 𝗦𝗧𝗔𝗧𝗨𝗦 𝗖𝗛𝗘𝗖𝗞
-
-🧠 AI Mode: ${aiEnabled ? '✅ ENABLED' : '❌ DISABLED'}
-😈 Gojo Mode: ${gojoEnabled ? '✅ ENABLED' : '❌ DISABLED'}
-
-----------------------------------
-
-💡 To enable AI: Type "on ai" or "ai on"
-💡 To enable Gojo: Type "on gojo" or "gojo on"
-💡 To disable: Type "off ai" or "off gojo"`;
-
-            const statusMessage = design("🤖 AI STATUS CHECK", statusContent);
-            return api.sendMessage(statusMessage, threadID, messageID);
-        }
-
         if (isAdmin) {
             if (isAddUserRequest(message)) {
                 return handleAddUser(api, event, args, threadID, messageID);
@@ -410,18 +389,18 @@ module.exports = {
         const gojoEnabled = gojoToggleStates.get(threadID) || false; 
 
         if (event.messageReply && event.messageReply.senderID === api.getCurrentUserID()) {
-
+          
             const replyData = ReplyHandler.get(event.messageReply.messageID);
             if (replyData && replyData.cmdname === 'spotify') {
                 return module.exports.onReply(api, event, replyData);
             }
-
+            
             if (gojoEnabled) {
                 return handleGojoAutoResponse(api, event, body, threadID, messageID);
             } else if (aiEnabled) {
                 return handleAIQuery(api, event, body, threadID, messageID);
             }
-
+           
             return;
         }
 
@@ -437,9 +416,9 @@ module.exports = {
 
     async onReply(api, event, replyData) {
         const { threadID, messageID, body, senderID } = event;
-
+        
         if (replyData.cmdname === 'spotify') {
-
+           
             if (senderID !== replyData.data.originalRequester) {
                 const accessMsg = `
 ╭─────────────────────╮
@@ -455,9 +434,9 @@ module.exports = {
 🎵 Use: spotify [song name]`;
                 return api.sendMessage(accessMsg, threadID, messageID);
             }
-
+            
             const choice = parseInt(body.trim());
-
+            
             if (isNaN(choice) || choice < 1 || choice > replyData.data.tracks.length) {
                 const invalidMsg = `
 ╭─────────────────────╮
@@ -474,11 +453,11 @@ module.exports = {
 🎵 Pick your favorite song!`;
                 return api.sendMessage(invalidMsg, threadID, messageID);
             }
-
+            
             const selectedTrack = replyData.data.tracks[choice - 1];
-
+            
             api.unsendMessage(replyData.messageID);
-
+            
             const preparingMsg = `
 ╭─────────────────────╮
 │   🎵 𝗦𝗣𝗢𝗧𝗜𝗙𝗬 𝗗𝗟      │
@@ -491,12 +470,19 @@ module.exports = {
 
 ━━━━━━━━━━━━━━━━━━━
 🎧 Getting your music ready!`;
-
+            
             api.sendMessage(preparingMsg, threadID, async (err, info) => {
                 if (err) return console.error(err);
 
                 try {
-                    // Use alternative download method with better error handling
+                    const trackInfo = await axios.get(`${API_CONFIG.FAB_DL}/spotify/get?url=${selectedTrack.url}`);
+                    const track = trackInfo.data.result;
+
+                    const downloadData = await axios.get(
+                        `${API_CONFIG.FAB_DL}/spotify/mp3-convert-task/${track.gid}/${track.id}`
+                    );
+                    const mp3Info = downloadData.data.result;
+                    
                     const downloadingMsg = `
 ╭─────────────────────╮
 │   🎵 𝗦𝗣𝗢𝗧𝗜𝗙𝗬 𝗗𝗟      │
@@ -508,55 +494,29 @@ module.exports = {
 ⬇️ 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗶𝗻𝗴 𝗮𝘂𝗱𝗶𝗼...
 
 ━━━━━━━━━━━━━━━━━━━
-🎧 Using alternative download method...`;
-
+🎧 Almost ready!`;
+                    
                     api.editMessage(downloadingMsg, info.messageID);
-
-                    // Try alternative API for Spotify downloads
-                    const altResponse = await axios.get(`https://api.lyrics.ovh/v1/${encodeURIComponent(selectedTrack.artist)}/${encodeURIComponent(selectedTrack.title)}`);
-
-                    // If lyrics API works, try direct download approach
+                    
                     const tempDir = path.join(__dirname, 'temp');
                     if (!fs.existsSync(tempDir)) {
-                        fs.mkdirSync(tempDir, { recursive: true });
+                        fs.mkdirSync(tempDir);
                     }
-
-                    // Try using yt-dlp API alternative for Spotify
-                    const downloadResponse = await axios.get(`https://api.spotifydown.com/download/${selectedTrack.id}`, {
-                        timeout: 30000,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                            'Accept': 'application/json'
-                        }
-                    });
-
-                    if (!downloadResponse.data || !downloadResponse.data.link) {
-                        throw new Error("Download link not available");
-                    }
-
+                    
                     const audioPath = path.join(tempDir, `spotify_${Date.now()}.mp3`);
                     const writer = fs.createWriteStream(audioPath);
-
+                    
                     const audioResponse = await axios({
                         method: 'get',
-                        url: downloadResponse.data.link,
-                        responseType: 'stream',
-                        timeout: 60000,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
+                        url: `${API_CONFIG.FAB_DL}${mp3Info.download_url}`,
+                        responseType: 'stream'
                     });
-
+                    
                     audioResponse.data.pipe(writer);
-
+                    
                     await new Promise((resolve, reject) => {
                         writer.on('finish', resolve);
                         writer.on('error', reject);
-
-                        // Add timeout for file writing
-                        setTimeout(() => {
-                            reject(new Error('Download timeout'));
-                        }, 60000);
                     });
 
                     const sendingMsg = `
@@ -573,7 +533,7 @@ module.exports = {
 🎧 Here comes your music!`;
 
                     api.editMessage(sendingMsg, info.messageID);
-
+                    
                     const messageBody = `
 ╭─────────────────────╮
 │ ✅ 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗦𝗨𝗖𝗖𝗘𝗦𝗦│
@@ -584,79 +544,44 @@ module.exports = {
 ⏱️ ${formatSpotifyDuration(selectedTrack.duration)}
 
 ━━━━━━━━━━━━━━━━━━━
-🎧 𝗘𝗻𝗷𝗼𝘆 𝘆𝗼𝘂𝗿 𝗺𝘂𝘀𝗶𝗰! ✨`;
 
-                    // Check if file exists and has content
-                    if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 0) {
-                        const audioStream = fs.createReadStream(audioPath);
-                        api.sendMessage({
-                            body: messageBody,
-                            attachment: audioStream
-                        }, threadID, async () => {
-                            try {
-                                fs.unlinkSync(audioPath);
-                            } catch (cleanupError) {
-                                console.error('Cleanup error:', cleanupError);
-                            }
-                            api.unsendMessage(info.messageID);
-                        });
-                    } else {
-                        throw new Error("Downloaded file is empty or corrupted");
-                    }
+🔗 𝗗𝗶𝗿𝗲𝗰𝘁 𝗟𝗶𝗻𝗸:
+${API_CONFIG.FAB_DL}${mp3Info.download_url}
+
+━━━━━━━━━━━━━━━━━━━
+🎧 𝗘𝗻𝗷𝗼𝘆 𝘆𝗼𝘂𝗿 𝗺𝘂𝘀𝗶𝗰! ✨`;
+                    
+                    api.sendMessage(messageBody, threadID);
+                    
+                    const audioStream = fs.createReadStream(audioPath);
+                    api.sendMessage({
+                        attachment: audioStream
+                    }, threadID, async () => {
+                        fs.unlinkSync(audioPath);
+                        api.unsendMessage(info.messageID);
+                    });
 
                     ReplyHandler.remove(replyData.messageID);
 
                 } catch (error) {
                     console.error("Spotify download error:", error);
-
-                    // Fallback: Provide Spotify link instead of crashing
-                    try {
-                        const fallbackMsg = `
+                    const errorMsg = `
 ╭─────────────────────╮
-│  ⚠️ 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗜𝗦𝗦𝗨𝗘 │
+│  ❌ 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 𝗘𝗥𝗥𝗢𝗥│
 ╰─────────────────────╯
 
-🎵 ${selectedTrack.title}
-🎤 ${selectedTrack.artist}
+🚫 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱
 
-🚫 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗳𝗮𝗶𝗹𝗲𝗱, 𝗯𝘂𝘁 𝗵𝗲𝗿𝗲'𝘀 𝘁𝗵𝗲 𝗦𝗽𝗼𝘁𝗶𝗳𝘆 𝗹𝗶𝗻𝗸:
+⚠️ ${error.message}
 
-🔗 ${selectedTrack.url}
-
-💡 𝗬𝗼𝘂 𝗰𝗮𝗻:
-   • Open this link in Spotify
-   • Try searching for another song
-   • Use a different music downloader
+💡 𝗣𝗹𝗲𝗮𝘀𝗲:
+   • Try again later
+   • Search for another song
+   • Check your connection
 
 ━━━━━━━━━━━━━━━━━━━
-🎧 Sorry for the inconvenience!`;
-
-                        api.editMessage(fallbackMsg, info.messageID);
-
-                        // Clean up any partial files
-                        const tempDir = path.join(__dirname, 'temp');
-                        if (fs.existsSync(tempDir)) {
-                            const files = fs.readdirSync(tempDir).filter(file => file.startsWith('spotify_'));
-                            files.forEach(file => {
-                                try {
-                                    fs.unlinkSync(path.join(tempDir, file));
-                                } catch (cleanupError) {
-                                    console.error('Cleanup error:', cleanupError);
-                                }
-                            });
-                        }
-
-                    } catch (fallbackError) {
-                        console.error("Fallback error:", fallbackError);
-                        api.editMessage("❌ Service temporarily unavailable. Please try again later.", info.messageID);
-                    }
-
-                    // Always remove the reply handler to prevent memory leaks
-                    try {
-                        ReplyHandler.remove(replyData.messageID);
-                    } catch (cleanupError) {
-                        console.error('Reply handler cleanup error:', cleanupError);
-                    }
+🔄 Ready to try again!`;
+                    api.editMessage(errorMsg, info.messageID);
                 }
             }, messageID);
         }
@@ -965,7 +890,7 @@ async function handleAIQuery(api, event, body, threadID, messageID) {
 
         try {
             const baseUrl = global.NashBot?.JOSHUA || "https://kaiz-apis.gleeze.com/";
-
+            
             // Check for image attachments
             let imageUrl = "";
             if (event.attachments && event.attachments.length > 0) {
@@ -976,38 +901,16 @@ async function handleAIQuery(api, event, body, threadID, messageID) {
                     imageUrl = imageAttachment.url || imageAttachment.hiresUrl || imageAttachment.previewUrl || "";
                 }
             }
-
+            
             // Also check for message reply with image
-        if (!imageUrl && event.messageReply && event.messageReply.attachments) {
-            const replyImageAttachment = event.messageReply.attachments.find(att => 
-                att.type === "photo" || att.type === "image"
-            );
-            if (replyImageAttachment) {
-                imageUrl = replyImageAttachment.url || replyImageAttachment.hiresUrl || replyImageAttachment.previewUrl || "";
+            if (!imageUrl && event.messageReply && event.messageReply.attachments) {
+                const replyImageAttachment = event.messageReply.attachments.find(att => 
+                    att.type === "photo" || att.type === "image"
+                );
+                if (replyImageAttachment) {
+                    imageUrl = replyImageAttachment.url || replyImageAttachment.hiresUrl || replyImageAttachment.previewUrl || "";
+                }
             }
-        }
-
-        // Get AI toggle states for this thread
-        const aiEnabled = aiToggleStates.get(threadID) || false;
-        const gojoEnabled = gojoToggleStates.get(threadID) || false;
-
-        // Check if this is a natural conversation that needs AI response
-        const shouldRespondWithAI = await isNaturalConversation(body);
-
-        // If AI mode is enabled, always respond with AI
-        if (aiEnabled) {
-            return handleAIQuery(api, event, body, threadID, messageID);
-        }
-
-        // If Gojo mode is enabled, always respond with Gojo
-        if (gojoEnabled) {
-            return handleGojoAutoResponse(api, event, body, threadID, messageID);
-        }
-
-        // If neither AI nor Gojo is enabled, but this seems like a natural conversation, respond with AI
-        if (shouldRespondWithAI && !aiEnabled && !gojoEnabled) {
-            return handleAIQuery(api, event, body, threadID, messageID);
-        }
 
             const url = `${baseUrl}api/gpt4o-latest?ask=${encodeURIComponent(prompt)}&uid=1&imageUrl=${encodeURIComponent(imageUrl)}&apikey=609efa09-3ed5-4132-8d03-d6f8ca11b527`;
             const response = await axios.get(url);
@@ -1050,7 +953,7 @@ async function handleAria(api, event, body, threadID, messageID) {
                     imageUrl = imageAttachment.url || imageAttachment.hiresUrl || imageAttachment.previewUrl || "";
                 }
             }
-
+            
             // Also check for message reply with image
             if (!imageUrl && event.messageReply && event.messageReply.attachments) {
                 const replyImageAttachment = event.messageReply.attachments.find(att => 
@@ -1943,11 +1846,11 @@ function handleRestockTimers(api, threadID, messageID) {
 
 function handleWomen(api, threadID, messageID) {
     const videoPath = path.join(__dirname, 'noprefix', 'Women.mp4');
-
+    
     if (!fs.existsSync(videoPath)) {
         return api.sendMessage("Women talaga (video not found)", threadID, messageID);
     }
-
+    
     const msg = {
         body: "Women talaga",
         attachment: fs.createReadStream(videoPath)
@@ -2002,9 +1905,9 @@ async function handleSpotify(api, event, body, threadID, messageID) {
                     }
                 }
             );
-
+            
             const tracks = searchResults.data.tracks.items;
-
+            
             if (tracks.length === 0) {
                 const noResultsMsg = `
 ╭─────────────────────╮
@@ -2036,20 +1939,20 @@ async function handleSpotify(api, event, body, threadID, messageID) {
 ━━━━━━━━━━━━━━━━━━━
 
 `;
-
+            
             const searchData = [];
-
+            
             tracks.forEach((track, index) => {
                 const title = track.name;
                 const artist = track.artists.map(artist => artist.name).join(', ');
                 const duration = formatSpotifyDuration(track.duration_ms);
                 const cover = track.album.images[0]?.url;
-
+                
                 resultMessage += `🎵 ${index + 1}. ${title}\n`;
                 resultMessage += `   🎤 ${artist}\n`;
                 resultMessage += `   ⏱️ ${duration}\n`;
                 resultMessage += `   ──────────────\n`;
-
+                
                 searchData.push({
                     id: track.id,
                     title: title,
@@ -2059,7 +1962,7 @@ async function handleSpotify(api, event, body, threadID, messageID) {
                     url: track.external_urls.spotify
                 });
             });
-
+            
             resultMessage += `
 ━━━━━━━━━━━━━━━━━━━
 
@@ -2067,9 +1970,9 @@ async function handleSpotify(api, event, body, threadID, messageID) {
 📱 𝗘𝘅𝗮𝗺𝗽𝗹𝗲: Reply "1" for first song
 
 🎧 Ready to download your music!`;
-
+            
             api.editMessage(resultMessage, info.messageID);
-
+            
             ReplyHandler.register(info.messageID, {
                 name: 'spotify',
                 author: event.senderID,

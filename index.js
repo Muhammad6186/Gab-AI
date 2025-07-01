@@ -4,7 +4,7 @@ const path = require("path");
 const wiegine = require("ws3-fca");
 const fs = require("fs");
 const autoReact = require("./handle/autoReact");
-// const unsendReact = require("./handle/unsendReact"); // Disabled due to ws3-fca library bug
+const unsendReact = require("./handle/unsendReact");
 const chalk = require("chalk");
 
 const app = express();
@@ -13,11 +13,11 @@ const configPath = path.join(__dirname, "config.json");
 let config;
 try {
   config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-
+  
   // Validate config properties
   if (!config.prefix) config.prefix = "-";
   if (!Array.isArray(config.adminUID)) config.adminUID = [];
-
+  
 } catch (error) {
   console.error(
     chalk.bold.gray("[") + 
@@ -85,53 +85,6 @@ global.NashBot = {
   JOSHUA: "https://kaiz-apis.gleeze.com/"
 };
 
-// Add global error handlers to prevent crashes
-process.on('unhandledRejection', (reason, promise) => {
-  // Filter out ws3-fca library errors to prevent spam
-  if (reason && reason.message && reason.message.includes('Cannot read properties of undefined')) {
-    console.log(
-      chalk.bold.gray("[") + 
-      chalk.bold.yellow("LIBRARY BUG") + 
-      chalk.bold.gray("] ") + 
-      chalk.bold.yellowBright("ws3-fca unsendMessage error ignored")
-    );
-    return;
-  }
-
-  console.error(
-    chalk.bold.gray("[") + 
-    chalk.bold.red("UNHANDLED REJECTION") + 
-    chalk.bold.gray("] ") + 
-    chalk.bold.redBright("Promise rejected:", reason)
-  );
-  // Don't crash the process
-});
-
-process.on('uncaughtException', (error) => {
-  console.error(
-    chalk.bold.gray("[") + 
-    chalk.bold.red("UNCAUGHT EXCEPTION") + 
-    chalk.bold.gray("] ") + 
-    chalk.bold.redBright("Error:", error.message)
-  );
-
-  // Specific handling for ws3-fca library bugs
-  if (error.message.includes('unsendMessage') || 
-      error.message.includes('Cannot read properties of undefined') ||
-      error.stack && error.stack.includes('ws3-fca')) {
-    console.log(
-      chalk.bold.gray("[") + 
-      chalk.bold.yellow("LIBRARY BUG") + 
-      chalk.bold.gray("] ") + 
-      chalk.bold.yellowBright("ws3-fca library error ignored to prevent crash")
-    );
-    return; // Don't crash for library bugs
-  }
-
-  // Only crash for critical system errors
-  process.exit(1);
-});
-
 let isLoggedIn = false;
 let loginAttempts = 0;
 const nax_retries = 5;
@@ -142,7 +95,7 @@ const loadModules = (type) => {
   const files = fs.readdirSync(folderPath).filter(file => file.endsWith(".js"));
 
   console.log(chalk.bold.redBright(`──LOADING ${type.toUpperCase()}──●`));
-
+  
   files.forEach(file => {
     try {
       const module = require(path.join(folderPath, file));
@@ -150,13 +103,13 @@ const loadModules = (type) => {
         module.nashPrefix = module.nashPrefix !== undefined ? module.nashPrefix : true;
         module.cooldowns = module.cooldowns || 0;
         global.NashBoT[type].set(module.name, module);
-
+        
         if (type === "commands" && module.aliases && Array.isArray(module.aliases)) {
           module.aliases.forEach(alias => {
             global.NashBoT[type].set(alias, module);
           });
         }
-
+        
         console.log(
           chalk.bold.gray("[") + 
           chalk.bold.cyan("INFO") + 
@@ -190,7 +143,7 @@ const relogin = async () => {
   if (fs.existsSync(appStatePath)) {
     try {
       const appState = JSON.parse(fs.readFileSync(appStatePath, "utf8"));
-
+      
       const loginTimeout = setTimeout(() => {
         console.error(
           chalk.bold.gray("[") + 
@@ -203,7 +156,7 @@ const relogin = async () => {
 
       wiegine.login(appState, {}, (err, api) => {
         clearTimeout(loginTimeout);
-
+        
         if (err) {
           console.error(
             chalk.bold.gray("[") + 
@@ -289,9 +242,9 @@ const setupBot = (api, prefix) => {
     handleMessage(api, event, prefix);
     handleEvent(api, event, prefix);
     autoReact(api, event);
-    // unsendReact(api, event); // Disabled due to ws3-fca library bug
+    unsendReact(api, event);
   });
-
+  
   setInterval(() => {
     api.getFriendsList(() => console.log(
       chalk.bold.gray("[") + 
@@ -321,68 +274,94 @@ const handleEvent = async (api, event, prefix) => {
 const handleMessage = async (api, event, prefix) => {
   if (!event.body) return;
 
-  
-
   await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
 
   let [command, ...args] = event.body.trim().split(" ");
-  command = command.toLowerCase();
+  let originalCommand = command;
+  
+  if (command.startsWith(prefix)) command = command.slice(prefix.length);
 
-  const { commands } = global.NashBoT;
-  const cmd = commands.get(command) || commands.get(command.slice(prefix.length));
-
-  if (!cmd) return;
-
-  if (cmd.nashPrefix && !event.body.startsWith(prefix)) return;
-
-  const now = Date.now();
-  const cooldownAmount = (cmd.cooldowns || 0) * 1000;
-
-  if (!global.NashBoT.cooldowns.has(cmd.name)) {
-    global.NashBoT.cooldowns.set(cmd.name, new Map());
-  }
-
-  const timestamps = global.NashBoT.cooldowns.get(cmd.name);
-  const userCooldown = timestamps.get(event.senderID);
-
-  if (userCooldown) {
-    const expirationTime = userCooldown + cooldownAmount;
-    if (now < expirationTime) {
-      const timeLeft = (expirationTime - now) / 1000;
-      return api.sendMessage(
-        `⏰ Please wait ${timeLeft.toFixed(1)} more seconds before using this command again.`,
-        event.threadID,
-        event.messageID
-      );
+  const cmdFile = global.NashBoT.commands.get(command.toLowerCase());
+  if (cmdFile) {
+    const nashPrefix = cmdFile.nashPrefix !== false;
+    if (nashPrefix && !originalCommand.startsWith(prefix)) {
+      // Command requires prefix but wasn't used with prefix
+      return handleSmartCommand(api, event, prefix);
     }
-  }
 
-  timestamps.set(event.senderID, now);
-  setTimeout(() => timestamps.delete(event.senderID), cooldownAmount);
+    const userId = event.senderID;
+    if (cmdFile.role === "admin" && !config.adminUID.includes(userId)) {
+      return setTimeout(() => {
+        api.sendMessage("You don't have permission to use this command", event.threadID);
+      }, Math.random() * 1000 + 500);
+    }
 
-  try {
-    cmd.execute(api, event, args, prefix);
-  } catch (error) {
-    console.error(
-      chalk.bold.gray("[") + 
-      chalk.bold.red("ERROR") + 
-      chalk.bold.gray("] ") + 
-      chalk.bold.redBright(`Command execution error for ${cmd.name}:`, error.message)
-    );
-    api.sendMessage("❌ An error occurred while executing this command.", event.threadID, event.messageID);
+    const cooldownTime = (cmdFile.cooldowns || 0) * 1000;
+    if (cooldownTime > 0) {
+      if (!global.NashBoT.cooldowns.has(cmdFile.name)) {
+        global.NashBoT.cooldowns.set(cmdFile.name, new Map());
+      }
+
+      const timestamps = global.NashBoT.cooldowns.get(cmdFile.name);
+      const now = Date.now();
+      const expirationTime = timestamps.get(userId);
+
+      if (expirationTime && now < expirationTime) {
+        const timeLeft = Math.ceil((expirationTime - now) / 1000);
+        api.sendMessage(`⏰ Please wait ${timeLeft} seconds before using this command again.`, event.threadID);
+        return;
+      }
+
+      timestamps.set(userId, now + cooldownTime);
+      setTimeout(() => {
+        timestamps.delete(userId);
+        // Clean up empty cooldown maps
+        if (timestamps.size === 0) {
+          global.NashBoT.cooldowns.delete(cmdFile.name);
+        }
+      }, cooldownTime);
+    }
+
+    try {
+      await cmdFile.execute(api, event, args, prefix);
+    } catch (err) {
+      setTimeout(() => {
+        api.sendMessage(`Command error: ${err.message}`, event.threadID);
+      }, Math.random() * 1000 + 500);
+    }
+  } else {
+   
+    handleSmartCommand(api, event, prefix);
   }
 };
 
-loadModules("commands");
-loadModules("events");
+const handleSmartCommand = async (api, event, prefix) => {
+  const smartCmd = global.NashBoT.commands.get('smart');
+  if (smartCmd) {
+    try {
+      const args = event.body.trim().split(" ");
+      await smartCmd.execute(api, event, args, prefix);
+    } catch (err) {
+      console.error("Smart command error:", err);
+    }
+  }
+};
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(
-    chalk.bold.gray("[") + 
-    chalk.bold.green("SERVER") + 
-    chalk.bold.gray("] ") + 
-    chalk.bold.greenBright(`Express server running on port ${PORT}`)
-  );
-});
+const init = async () => {
+  await loadModules("commands");
+  await loadModules("events");
+  await relogin();
+  console.log(chalk.bold.blueBright("──STARTING BOT──●"));
+  console.log(chalk.bold.red(`
+ █▄░█ ▄▀█ █▀ █░█
+ █░▀█ █▀█ ▄█ █▀█`));
+  console.log(chalk.bold.yellow("Credits: Joshua Apostol"));
+};
 
-relogin();
+
+init().then(() => app.listen(PORT, '0.0.0.0', () => console.log(
+  chalk.bold.gray("[") + 
+  chalk.bold.green("SERVER") + 
+  chalk.bold.gray("] ") + 
+  chalk.bold.greenBright(`Running on http://0.0.0.0:${PORT}`)
+)));
