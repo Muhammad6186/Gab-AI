@@ -858,8 +858,7 @@ async function handleGojo(api, event, body, threadID, messageID) {
         if (err) return;
 
         try {
-            const response = await axios.post("https://api.exh.ai```javascript
-/chatbot/v4/botify/response", data, {
+            const response = await axios.post("https://api.exh.ai/chatbot/v4/botify/response", data, {
                 headers: {
                     "User-Agent": "Mozilla/5.0",
                     "Content-Type": "application/json",
@@ -1621,7 +1620,7 @@ function handleGagStock(api, event, body, threadID, messageID) {
    Real-time data from Grow a Garden Stock`;
 
     const gagHelp = design("🌾 GROW A GARDEN STOCK TRACKER", helpContent);
-    return api.sendMessage(that message, threadID, messageID);
+    return api.sendMessage(gagHelp, threadID, messageID);
 }
 
 function extractAction(message) {
