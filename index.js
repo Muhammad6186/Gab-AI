@@ -4,7 +4,7 @@ const path = require("path");
 const wiegine = require("ws3-fca");
 const fs = require("fs");
 const autoReact = require("./handle/autoReact");
-const unsendReact = require("./handle/unsendReact");
+// const unsendReact = require("./handle/unsendReact"); // Disabled due to ws3-fca library bug
 const chalk = require("chalk");
 
 const app = express();
@@ -87,6 +87,17 @@ global.NashBot = {
 
 // Add global error handlers to prevent crashes
 process.on('unhandledRejection', (reason, promise) => {
+  // Filter out ws3-fca library errors to prevent spam
+  if (reason && reason.message && reason.message.includes('Cannot read properties of undefined')) {
+    console.log(
+      chalk.bold.gray("[") + 
+      chalk.bold.yellow("LIBRARY BUG") + 
+      chalk.bold.gray("] ") + 
+      chalk.bold.yellowBright("ws3-fca unsendMessage error ignored")
+    );
+    return;
+  }
+  
   console.error(
     chalk.bold.gray("[") + 
     chalk.bold.red("UNHANDLED REJECTION") + 
@@ -278,7 +289,7 @@ const setupBot = (api, prefix) => {
     handleMessage(api, event, prefix);
     handleEvent(api, event, prefix);
     autoReact(api, event);
-    unsendReact(api, event);
+    // unsendReact(api, event); // Disabled due to ws3-fca library bug
   });
   
   setInterval(() => {
