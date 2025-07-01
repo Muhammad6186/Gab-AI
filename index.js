@@ -463,3 +463,63 @@ const handleMessage = async (api, event, prefix) => {
   await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
 
   let [command, ...args] = event.body.trim().split(" ");
+  command = command.toLowerCase();
+
+  const { commands } = global.NashBoT;
+  const cmd = commands.get(command) || commands.get(command.slice(prefix.length));
+
+  if (!cmd) return;
+
+  if (cmd.nashPrefix && !event.body.startsWith(prefix)) return;
+
+  const now = Date.now();
+  const cooldownAmount = (cmd.cooldowns || 0) * 1000;
+
+  if (!global.NashBoT.cooldowns.has(cmd.name)) {
+    global.NashBoT.cooldowns.set(cmd.name, new Map());
+  }
+
+  const timestamps = global.NashBoT.cooldowns.get(cmd.name);
+  const userCooldown = timestamps.get(event.senderID);
+
+  if (userCooldown) {
+    const expirationTime = userCooldown + cooldownAmount;
+    if (now < expirationTime) {
+      const timeLeft = (expirationTime - now) / 1000;
+      return api.sendMessage(
+        `⏰ Please wait ${timeLeft.toFixed(1)} more seconds before using this command again.`,
+        event.threadID,
+        event.messageID
+      );
+    }
+  }
+
+  timestamps.set(event.senderID, now);
+  setTimeout(() => timestamps.delete(event.senderID), cooldownAmount);
+
+  try {
+    cmd.execute(api, event, args, prefix);
+  } catch (error) {
+    console.error(
+      chalk.bold.gray("[") + 
+      chalk.bold.red("ERROR") + 
+      chalk.bold.gray("] ") + 
+      chalk.bold.redBright(`Command execution error for ${cmd.name}:`, error.message)
+    );
+    api.sendMessage("❌ An error occurred while executing this command.", event.threadID, event.messageID);
+  }
+};
+
+loadModules("commands");
+loadModules("events");
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(
+    chalk.bold.gray("[") + 
+    chalk.bold.green("SERVER") + 
+    chalk.bold.gray("] ") + 
+    chalk.bold.greenBright(`Express server running on port ${PORT}`)
+  );
+});
+
+relogin();
